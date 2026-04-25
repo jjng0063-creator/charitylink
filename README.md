@@ -1,54 +1,179 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
-
 # CharityLink
 
-CharityLink connects local donors and charities. Donors can post available items, charities can post needs, and both sides can chat.
+CharityLink is a community donation and needs-matching application. Users can post donation items, request needed items, browse nearby listings, manage their own posts, and chat with other users.
+
+## Current Features
+
+- Google sign-in with Firebase Authentication.
+- Donation post creation with image upload.
+- Needs post creation with priority levels.
+- Home donation feed with location-priority display.
+- Needs feed with location-priority and priority-based ordering.
+- Category, location, and needs-priority filters.
+- Donation and needs details pages with exact posted date/time.
+- Chat between users with unread notification support.
+- Realtime user presence status using Firebase Realtime Database.
+- Profile dashboard with donation and needs counts.
+- Manage Donations module with edit, delete, image gallery, request analysis, and hide/show visibility controls.
+- Manage Needs module with edit, delete, priority updates, and hide/show visibility controls.
+- Account Settings page for updating display name and default location.
 
 ## Tech Stack
 
-- React + TypeScript + Vite
-- Firebase Auth (Google sign-in)
-- Firestore (posts, needs, chats)
-- Firebase Storage (image uploads)
+- React
+- TypeScript
+- Vite
+- Firebase Authentication
+- Firestore
+- Firebase Storage
+- Firebase Realtime Database
+- Tailwind CSS
+- Capacitor-ready web build path for Android APK packaging
 
 ## Local Setup
 
-**Prerequisites:** Node.js 18+
+Prerequisite: Node.js 18 or newer.
 
 1. Install dependencies:
-   `npm install`
+
+```powershell
+npm install
+```
+
 2. Copy `.env.example` to `.env.local`.
-3. Fill all `VITE_FIREBASE_*` values in `.env.local`.
-4. Run development server:
-   `npm run dev`
 
-## Security Notes
+3. Fill in the Firebase environment values in `.env.local`.
 
-- Do not commit real Firebase credentials to source control.
-- Gemini API keys must stay server-side.
-- Frontend calls backend endpoint (`POST /api/categorize`) for AI categorization.
+4. Run the development server:
 
-## Current Project Structure
+```powershell
+npm run dev
+```
 
-- `src/lib/firebase.ts`: Firebase initialization (Auth, Firestore, Storage)
-- `src/components/CreatePost.tsx`: Post creation and image upload
-- `src/components/Chat.tsx`: Chat list and message thread UI
-- `src/contexts/AuthContext.tsx`: Auth state and profile bootstrap
-- `firestore.rules`: Firestore security rules
+5. Open the local URL shown in the terminal.
 
-## Next Implementation Step (Recommended)
+## Firebase Setup
 
-Productionize backend AI categorization endpoint:
+This project uses:
 
-1. Current implementation: Vite middleware route in [server/categorizeRoute.ts](server/categorizeRoute.ts).
-2. Keep `GEMINI_API_KEY` only in server environment (never `VITE_*`).
-3. Route accepts `imageData` and `mimeType`, returns `{ category: string }`.
-4. Built-in protections: payload limit and in-memory rate limiting.
-5. For production hosting, move the same logic to a dedicated backend service (Cloud Function/Cloud Run) if your host does not execute Vite middleware.
+- Firebase Auth for Google sign-in.
+- Firestore for users, posts, needs, chats, and messages.
+- Firebase Storage for donation images.
+- Firebase Realtime Database for online/offline presence.
+
+Firebase rule files included in this project:
+
+- `firestore.rules`
+- `database.rules.json`
+
+After changing these rule files, deploy or manually update the rules in Firebase Console.
+
+## Environment Variables
+
+Use `.env.example` as the template.
+
+Important values:
+
+```text
+VITE_FIREBASE_API_KEY
+VITE_FIREBASE_AUTH_DOMAIN
+VITE_FIREBASE_PROJECT_ID
+VITE_FIREBASE_STORAGE_BUCKET
+VITE_FIREBASE_MESSAGING_SENDER_ID
+VITE_FIREBASE_APP_ID
+VITE_FIREBASE_DATABASE_URL
+```
+
+Do not commit `.env.local`.
+
+## AI Category Suggestion
+
+The AI category suggestion code is present but currently disabled in `src/components/CreatePost.tsx`.
+
+Current setting:
+
+```ts
+const ENABLE_AI_CATEGORY_SUGGESTION = false;
+```
+
+If re-enabled, the app calls the backend endpoint:
+
+```text
+POST /api/categorize
+```
+
+The server-side route is located at:
+
+```text
+server/categorizeRoute.ts
+```
+
+For production or APK builds, this endpoint should be deployed to a real backend service such as Firebase Functions or Cloud Run.
+
+## Android APK Notes
+
+The app can be wrapped into an Android APK using Capacitor.
+
+General flow:
+
+```powershell
+npm run build
+npx cap sync android
+npx cap open android
+```
+
+For Google sign-in in an APK, add an Android app in Firebase Console, configure the package name, add SHA-1/SHA-256 fingerprints, and download `google-services.json` into:
+
+```text
+android/app/google-services.json
+```
+
+## Project Structure
+
+```text
+src/
+  components/
+    AccountSettings.tsx
+    Chat.tsx
+    CreatePost.tsx
+    Header.tsx
+    ManageNeeds.tsx
+    ManagePosts.tsx
+    NeedDetails.tsx
+    PostCard.tsx
+    PostDetails.tsx
+    Profile.tsx
+  contexts/
+    AuthContext.tsx
+  lib/
+    categories.ts
+    firebase.ts
+    gemini.ts
+    utils.ts
+  App.tsx
+  main.tsx
+
+server/
+  categorizeRoute.ts
+```
 
 ## Validation Commands
 
-- Type-check: `npm run lint`
-- Build: `npm run build`
+Type-check:
+
+```powershell
+npm run lint
+```
+
+Production build:
+
+```powershell
+npm run build
+```
+
+## Security Notes
+
+- Do not commit `.env.local`.
+- Do not expose private API keys in frontend variables.
+- Keep Gemini API keys server-side only.
+- Deploy updated Firebase rules whenever `firestore.rules` or `database.rules.json` changes.
