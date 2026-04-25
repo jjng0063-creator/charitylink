@@ -1,0 +1,103 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Public user profile information",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["donor", "charity"] },
+        "state": { "type": "string" }
+      },
+      "required": ["role", "state"]
+    },
+    "UserPrivate": {
+      "title": "User Private Data",
+      "description": "Sensitive user data",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "uid": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "DonationPost": {
+      "title": "Donation Post",
+      "description": "Item being donated",
+      "type": "object",
+      "properties": {
+        "donorId": { "type": "string" },
+        "donorName": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "state": { "type": "string" },
+        "status": { "type": "string", "enum": ["available", "claimed", "donated"] },
+        "createdAt": { "type": "integer" },
+        "updatedAt": { "type": "integer" }
+      },
+      "required": ["donorId", "title", "imageUrl", "state", "status"]
+    },
+    "CharityNeed": {
+      "title": "Charity Need",
+      "description": "Items needed by a charity",
+      "type": "object",
+      "properties": {
+        "charityId": { "type": "string" },
+        "charityName": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+        "state": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["charityId", "title", "state", "priority"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "Individual message in a chat",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["senderId", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Public user profile data"
+    },
+    "/users/{userId}/private/data": {
+      "schema": "UserPrivate",
+      "description": "Private user data"
+    },
+    "/posts/{postId}": {
+      "schema": "DonationPost",
+      "description": "Public donation listings"
+    },
+    "/needs/{needId}": {
+      "schema": "CharityNeed",
+      "description": "Charity requests"
+    },
+    "/chats/{chatId}": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "participants": { "type": "array", "items": { "type": "string" } },
+          "updatedAt": { "type": "integer" }
+        }
+      },
+      "description": "Chat sessions"
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Messages within a chat"
+    }
+  }
+}

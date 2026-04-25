@@ -1,0 +1,10 @@
+{
+  "projectId": "REDACTED_PROJECT_ID",
+  "appId": "REDACTED_APP_ID",
+  "apiKey": "REDACTED_API_KEY",
+  "authDomain": "REDACTED_AUTH_DOMAIN",
+  "firestoreDatabaseId": "REDACTED_DATABASE_ID",
+  "storageBucket": "REDACTED_STORAGE_BUCKET",
+  "messagingSenderId": "REDACTED_SENDER_ID",
+  "measurementId": ""
+}

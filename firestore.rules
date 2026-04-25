@@ -1,0 +1,243 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    /*
+     * 0. Global Safety Net
+     * Function: By default, this denies all read and write access to all documents in the database.
+     * This ensures that no data is accidentally exposed. If a specific collection isn't explicitly
+     * given access rules below, it will default to this secure 'deny all' state.
+     */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    /*
+     * --- Helpers ---
+     * Function: These are reusable utility functions used throughout the rules to keep the code DRY 
+     * (Don't Repeat Yourself) and readable. They check basic conditions like whether a user is 
+     * authenticated (signed in), if the user is the owner of a document, or parsing incoming data.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    /*
+     * --- Validation Blueprints ---
+     * Function: These functions define the exact schema and data requirements for different types of 
+     * documents (Users, Posts, Needs, Messages). They ensure that any data being written to the 
+     * database matches the expected format, types, sizes, and specific constraints. 
+     * This protects against corrupted data, over-sized data, or maliciously injected fields.
+     */
+
+    function isValidPublicUser(data) {
+      return data.role in ['donor', 'charity']
+        && data.state is string && data.state.size() <= 100
+        && (data.displayName == null || (data.displayName is string && data.displayName.size() <= 100))
+        && (data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 2000));
+    }
+
+    function isValidPrivateUser(data) {
+      return data.uid == request.auth.uid 
+        && (data.email == null || (data.email is string && data.email.size() <= 256))
+        && data.createdAt == request.time;
+    }
+
+    function isValidPost(data) {
+      let editedKeys = data.diff(resource.data).affectedKeys();
+      return data.donorId == request.auth.uid
+        && data.title is string && data.title.size() <= 200
+        && (data.description == null || (data.description is string && data.description.size() <= 5000))
+        && (data.category == null || (data.category is string && data.category.size() <= 100))
+        && (data.customCategory == null || (data.customCategory is string && data.customCategory.size() <= 100))
+        && data.state is string && data.state.size() <= 100
+        && data.status in ['available', 'claimed', 'donated']
+        && (data.visibility == null || data.visibility in ['visible', 'hidden'])
+        && (data.imageUrl == null || (data.imageUrl is string && data.imageUrl.size() <= 1000000) || (editedKeys.hasAny(["imageUrl"]) && data.imageUrl == resource.data.imageUrl)) // Allowing large data URLs
+        && (data.imageUrls == null || (data.imageUrls is list && data.imageUrls.size() <= 10) || (editedKeys.hasAny(["imageUrls"]) && data.imageUrls == resource.data.imageUrls))
+        && data.updatedAt == request.time;
+    }
+
+    function isValidNeed(data) {
+      return data.requesterId == request.auth.uid
+        && data.requesterName is string && data.requesterName.size() <= 100
+        && data.title is string && data.title.size() <= 200
+        && (data.description == null || (data.description is string && data.description.size() <= 5000))
+        && (data.category == null || (data.category is string && data.category.size() <= 100))
+        && (data.customCategory == null || (data.customCategory is string && data.customCategory.size() <= 100))
+        && data.priority in ['low', 'medium', 'high']
+        && (data.visibility == null || data.visibility in ['visible', 'hidden'])
+        && data.state is string && data.state.size() <= 100;
+    }
+
+    function isValidMessage(data) {
+      return data.senderId == request.auth.uid
+        && data.text is string && data.text.size() <= 5000
+        && data.createdAt == request.time;
+    }
+
+    function isValidChatCreate(data) {
+      return data.participants is list
+        && data.participants.size() == 2
+        && data.participants[0] != data.participants[1]
+        && request.auth.uid in data.participants
+        && data.participantDetails is map
+        && (data.relatedPostIds == null || (data.relatedPostIds is list && data.relatedPostIds.size() <= 20))
+        && (data.lastMessage == null || (data.lastMessage is string && data.lastMessage.size() <= 5000))
+        && data.createdAt == request.time
+        && data.updatedAt == request.time;
+    }
+
+    function keepsExistingChatShape(data) {
+      return data.participants == existing().participants
+        && (!('participantDetails' in existing()) || data.participantDetails == existing().participantDetails)
+        && (!('createdAt' in existing()) || data.createdAt == existing().createdAt);
+    }
+
+    function isValidChatReadReset(data) {
+      return data.diff(existing()).affectedKeys().hasOnly(['unreadBy'])
+        && keepsExistingChatShape(data)
+        && data.unreadBy is map
+        && data.unreadBy[request.auth.uid] == 0;
+    }
+
+    function isValidChatMessageMetadataUpdate(data) {
+      return data.diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt', 'unreadBy', 'relatedPostIds'])
+        && keepsExistingChatShape(data)
+        && data.lastMessage is string
+        && data.lastMessage.size() <= 5000
+        && data.updatedAt == request.time
+        && data.unreadBy is map
+        && data.unreadBy[request.auth.uid] == 0
+        && (data.relatedPostIds == null || (data.relatedPostIds is list && data.relatedPostIds.size() <= 20));
+    }
+
+    function isValidChatRelatedPostUpdate(data) {
+      return data.diff(existing()).affectedKeys().hasOnly(['relatedPostIds'])
+        && keepsExistingChatShape(data)
+        && data.relatedPostIds is list
+        && data.relatedPostIds.size() <= 20;
+    }
+
+    /*
+     * --- Collection Rules ---
+     * Function: This section defines the specific read/write access permissions for each top-level 
+     * collection in the Firestore database (Users, Posts, Needs, Chats). 
+     * It uses the helper and validation functions defined above to enforce security.
+     */
+
+    /*
+     * Users Collection
+     * Function: Manages user profiles. 
+     * - Any signed-in user can view public profiles.
+     * - Only the profile owner can create or update their own public and private profile data.
+     */
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow create, update: if isOwner(userId) && isValidPublicUser(incoming());
+
+      match /private/data {
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidPrivateUser(incoming());
+      }
+    }
+
+    /*
+     * Posts Collection
+     * Function: Manages donation posts created by donors.
+     * - Signed-in users can list available posts, or donors can see all their own posts.
+     * - Only verified, signed-in users can create posts, provided the data is valid.
+     * - Updates are allowed for editing by the donor, or for others to claim available posts.
+     * - Deletion is heavily restricted to the owner while the post is still available.
+     */
+    match /posts/{postId} {
+      allow list: if isSignedIn() && (resource.data.status == 'available' || resource.data.donorId == request.auth.uid);
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isVerified() && isValidPost(incoming()) 
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isVerified() && isValidPost(incoming())
+        && incoming().donorId == existing().donorId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Edit content
+          (isOwner(existing().donorId) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'category', 'customCategory', 'visibility', 'imageUrl', 'imageUrls', 'updatedAt'])) ||
+          // Action: Hide/show public visibility
+          (isOwner(existing().donorId) && incoming().diff(existing()).affectedKeys().hasOnly(['visibility', 'updatedAt'])) ||
+          // Action: Claim/Status update
+          (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) && existing().status != 'donated')
+        );
+      allow delete: if isOwner(existing().donorId) && existing().status == 'available';
+    }
+
+    /*
+     * Charity Needs Collection
+     * Function: Manages specific resource needs posted by charities.
+     * - Signed-in users can list and view needs.
+     * - Only verified users who have the 'charity' role can create needs.
+     * - Only the charity that created the need can update or delete it.
+     */
+    match /needs/{needId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isVerified() && isValidNeed(incoming()) && incoming().createdAt == request.time;
+      allow update: if isOwner(existing().requesterId) && isValidNeed(incoming())
+        && incoming().requesterId == existing().requesterId
+        && incoming().createdAt == existing().createdAt
+        && (
+          // Action: Edit content
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'category', 'customCategory', 'priority', 'state', 'visibility'])
+        );
+      allow delete: if isOwner(existing().requesterId);
+    }
+
+    /*
+     * Chats Collection
+     * Function: Manages private messaging between users (e.g., donor and charity).
+     * - Only participants of a specific chat can list, view, and act within that chat.
+     * - Requires exactly 2 participants to create a new chat.
+     * - Manages a subcollection `/messages` where only participants can read and create valid messages.
+     */
+    match /chats/{chatId} {
+      allow get: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn() && isValidChatCreate(incoming());
+      allow update: if isSignedIn() && request.auth.uid in existing().participants
+        && (
+          isValidChatReadReset(incoming())
+          || isValidChatMessageMetadataUpdate(incoming())
+          || isValidChatRelatedPostUpdate(incoming())
+        );
+
+      match /messages/{messageId} {
+        allow list: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        allow create: if isSignedIn() && request.auth.uid in getAfter(/databases/$(database)/documents/chats/$(chatId)).data.participants
+          && isValidMessage(incoming());
+      }
+    }
+  }
+}
+
+
+

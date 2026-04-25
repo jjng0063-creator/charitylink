@@ -1,0 +1,9 @@
+{
+  "name": "CharityLInk",
+  "description": "An eco-friendly donation platform connecting donors with local charities. Features real-time chat, AI-powered item categorization, and location-based filtering.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}

@@ -1,0 +1,143 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    // --- Validation Blueprints ---
+
+    function isValidPublicUser(data) {
+      return data.role in ['donor', 'charity']
+        && data.state is string && data.state.size() <= 100
+        && (data.displayName == null || (data.displayName is string && data.displayName.size() <= 100))
+        && (data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 1000));
+    }
+
+    function isValidPrivateUser(data) {
+      return data.uid == request.auth.uid 
+        && data.email is string && data.email.size() <= 256
+        && data.createdAt == request.time;
+    }
+
+    function isValidPost(data) {
+      let editedKeys = data.diff(resource.data).affectedKeys();
+      return data.donorId == request.auth.uid
+        && data.title is string && data.title.size() <= 200
+        && data.description is string && data.description.size() <= 2000
+        && data.category is string && data.category.size() <= 100
+        && data.state is string && data.state.size() <= 100
+        && data.status in ['available', 'claimed', 'donated']
+        && (data.imageUrl is string && data.imageUrl.size() <= 1000000 || (editedKeys.hasAny(["imageUrl"]) && data.imageUrl == resource.data.imageUrl))
+        && (data.imageUrls == null || (data.imageUrls is list && data.imageUrls.size() <= 10) || (editedKeys.hasAny(["imageUrls"]) && data.imageUrls == resource.data.imageUrls))
+        && data.updatedAt == request.time;
+    }
+
+    function isValidNeed(data) {
+      // Must be a charity to post a need
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'charity'
+        && data.charityId == request.auth.uid
+        && data.title is string && data.title.size() <= 200
+        && data.priority in ['low', 'medium', 'high']
+        && data.state is string && data.state.size() <= 100;
+    }
+
+    function isValidMessage(data) {
+      return data.senderId == request.auth.uid
+        && data.text is string && data.text.size() <= 5000
+        && data.createdAt == request.time;
+    }
+
+    // --- Collection Rules ---
+
+    // Users
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow create, update: if isOwner(userId) && isValidPublicUser(incoming());
+
+      match /private/data {
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidPrivateUser(incoming());
+      }
+    }
+
+    // Posts
+    match /posts/{postId} {
+      allow list: if isSignedIn() && (resource.data.status == 'available' || resource.data.donorId == request.auth.uid);
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isVerified() && isValidPost(incoming()) 
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isVerified() && isValidPost(incoming())
+        && incoming().donorId == existing().donorId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Edit content
+          (isOwner(existing().donorId) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'category', 'imageUrl', 'imageUrls', 'updatedAt'])) ||
+          // Action: Claim/Status update
+          (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) && existing().status != 'donated')
+        );
+      allow delete: if isOwner(existing().donorId) && existing().status == 'available';
+    }
+
+    // Charity Needs
+    match /needs/{needId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isVerified() && isValidNeed(incoming()) && incoming().createdAt == request.time;
+      allow update: if isOwner(existing().charityId) && isValidNeed(incoming())
+        && incoming().charityId == existing().charityId
+        && incoming().createdAt == existing().createdAt
+        && (
+          // Action: Edit content
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'priority', 'state'])
+        );
+      allow delete: if isOwner(existing().charityId);
+    }
+
+    // Chats
+    match /chats/{chatId} {
+      allow get: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn() && request.auth.uid in incoming().participants && incoming().participants.size() == 2;
+      allow update: if isSignedIn() && request.auth.uid in existing().participants
+        && incoming().participants == existing().participants
+        && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt', 'relatedPostIds', 'unreadBy']);
+
+      match /messages/{messageId} {
+        allow list: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+          && isValidMessage(incoming());
+      }
+    }
+  }
+}
+
