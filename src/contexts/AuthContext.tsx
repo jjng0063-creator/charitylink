@@ -3,6 +3,7 @@ import { User, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { onDisconnect, onValue, ref as databaseRef, serverTimestamp as databaseServerTimestamp, set as setDatabaseValue } from 'firebase/database';
 import { auth, db, presenceDb, signInWithGoogle as firebaseSignIn } from '../lib/firebase';
+import { registerPushNotifications, unregisterPushNotifications } from '../lib/pushNotifications';
 import { UserProfile, UserRole } from '../types';
 
 export interface FirestoreErrorInfo {
@@ -111,6 +112,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!user) {
+      void unregisterPushNotifications();
+      return;
+    }
+
+    void registerPushNotifications(user.uid);
+  }, [user]);
+
   /**
    * Signs in with Google and bootstraps the user's public/private profile documents.
    */
@@ -148,6 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Signs out the current Firebase user.
    */
   const logout = async () => {
+    await unregisterPushNotifications();
     await signOut(auth);
   };
 

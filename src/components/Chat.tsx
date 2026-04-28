@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, ArrowLeft, Loader2 } from 'lucide-react';
+import { Send, ArrowLeft } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '../lib/utils';
 import { useAuth, handleFirestoreError } from '../contexts/AuthContext';
@@ -7,6 +7,7 @@ import { db, presenceDb } from '../lib/firebase';
 import { collection, query, where, onSnapshot, orderBy, serverTimestamp, updateDoc, doc, increment, writeBatch } from 'firebase/firestore';
 import { onValue, ref as databaseRef } from 'firebase/database';
 import { ChatRoom, Message } from '../types';
+import { BrandLoader, BrandLogo } from './BrandLogo';
 
 interface PresenceState {
   state?: 'online' | 'offline';
@@ -253,9 +254,7 @@ export function Chat({ activeChatId, onChatChange }: { activeChatId: string | nu
           </div>
         )}
         {isLoading ? (
-          <div className="py-10 flex justify-center">
-            <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-          </div>
+          <BrandLoader className="py-10" label="Loading chats" />
         ) : chats.length > 0 ? (
           chats.map((chat) => {
             const otherUser = getOtherParticipant(chat);
@@ -286,7 +285,8 @@ export function Chat({ activeChatId, onChatChange }: { activeChatId: string | nu
             )
           })
         ) : (
-          <div className="py-10 text-center space-y-2">
+          <div className="py-10 text-center space-y-3 flex flex-col items-center">
+             <BrandLogo className="h-14 w-14" />
              <p className="text-gray-500 font-medium">You have no active chats.</p>
           </div>
         )}

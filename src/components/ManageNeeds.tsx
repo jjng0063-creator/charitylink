@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Eye, EyeOff, HandHeart, Loader2, MapPin, Pencil, Save, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, HandHeart, MapPin, Pencil, Save, Trash2, X } from 'lucide-react';
 import { collection, deleteDoc, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import { NeedPost } from '../types';
 import { db } from '../lib/firebase';
 import { useAuth, handleFirestoreError } from '../contexts/AuthContext';
 import { CATEGORY_OPTIONS, getDisplayCategory, isCategoryOption } from '../lib/categories';
 import { cn } from '../lib/utils';
+import { BrandLoader, BrandLogo } from './BrandLogo';
 
 interface ManageNeedsProps {
   onBack: () => void;
@@ -420,11 +421,10 @@ export function ManageNeeds({ onBack }: ManageNeedsProps) {
       )}
 
       {isLoading ? (
-        <div className="py-20 flex justify-center">
-          <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-        </div>
+        <BrandLoader className="py-20" label="Loading your needs" />
       ) : myNeeds.length === 0 ? (
-        <div className="bg-white p-6 rounded-2xl border border-emerald-50 text-center text-gray-500 font-medium shadow-sm">
+        <div className="bg-white p-6 rounded-2xl border border-emerald-50 text-center text-gray-500 font-medium shadow-sm flex flex-col items-center gap-3">
+          <BrandLogo className="h-14 w-14" />
           You have no needs yet.
         </div>
       ) : (

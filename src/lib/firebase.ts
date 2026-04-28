@@ -1,5 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
+import { getAuth, GoogleAuthProvider, signInWithCredential, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import { getDatabase } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
@@ -54,6 +56,24 @@ export const googleProvider = new GoogleAuthProvider();
  */
 export const signInWithGoogle = async () => {
   try {
+    if (Capacitor.isNativePlatform()) {
+      const nativeResult = await FirebaseAuthentication.signInWithGoogle({
+        skipNativeAuth: true,
+      });
+      const credential = nativeResult.credential;
+
+      if (!credential?.idToken && !credential?.accessToken) {
+        throw new Error('Google sign-in did not return a credential token.');
+      }
+
+      const googleCredential = GoogleAuthProvider.credential(
+        credential.idToken,
+        credential.accessToken,
+      );
+      const result = await signInWithCredential(auth, googleCredential);
+      return result.user;
+    }
+
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error) {

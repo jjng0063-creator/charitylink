@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, Bell, X, Package, MessageSquare, ChevronDown, Loader2 } from 'lucide-react';
+import { MapPin, Bell, X, Package, MessageSquare, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatDistanceToNow } from 'date-fns';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
 import { ChatRoom } from '../types';
+import { BrandLoader, BrandLogo } from './BrandLogo';
 
 interface HeaderProps {
   location: string;
@@ -195,9 +196,7 @@ export function Header({ location, setLocation, onOpenChat }: HeaderProps) {
 
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {isLoadingNotifications ? (
-                  <div className="py-10 flex justify-center">
-                    <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-                  </div>
+                  <BrandLoader className="py-10" label="Loading alerts" />
                 ) : notifications.length > 0 ? (
                   notifications.map((notification) => (
                     <button
@@ -230,9 +229,7 @@ export function Header({ location, setLocation, onOpenChat }: HeaderProps) {
                   ))
                 ) : (
                   <div className="text-center pt-8 pb-4">
-                    <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Bell className="w-8 h-8 text-emerald-200" />
-                    </div>
+                    <BrandLogo className="mx-auto mb-3 h-16 w-16" />
                     <p className="text-sm font-bold text-gray-400">You're all caught up!</p>
                   </div>
                 )}

@@ -63,6 +63,14 @@ service cloud.firestore {
         && data.createdAt == request.time;
     }
 
+    function isValidFcmToken(data) {
+      return data.keys().hasOnly(['token', 'platform', 'updatedAt'])
+        && data.token is string
+        && data.token.size() <= 4096
+        && data.platform in ['android', 'ios', 'web']
+        && data.updatedAt == request.time;
+    }
+
     function isValidPost(data) {
       let editedKeys = data.diff(resource.data).affectedKeys();
       return data.donorId == request.auth.uid
@@ -159,6 +167,12 @@ service cloud.firestore {
       match /private/data {
         allow get: if isOwner(userId);
         allow create: if isOwner(userId) && isValidPrivateUser(incoming());
+      }
+
+      match /fcmTokens/{tokenId} {
+        allow get, list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidFcmToken(incoming());
+        allow delete: if isOwner(userId);
       }
     }
 

@@ -11,15 +11,17 @@ import { AccountSettings } from './components/AccountSettings';
 import { PostDetails } from './components/PostDetails';
 import { NeedDetails } from './components/NeedDetails';
 import { Chat } from './components/Chat';
+import { BrandLoader, BrandLogo } from './components/BrandLogo';
 import { db } from './lib/firebase';
 import { collection, query, where, onSnapshot, doc, serverTimestamp, writeBatch, increment, arrayUnion } from 'firebase/firestore';
 import { DonationPost, NeedPost } from './types';
 
-import { CalendarClock, Heart, Search, Filter, Leaf, LogIn, Loader2, MapPin, X } from 'lucide-react';
+import { CalendarClock, Heart, Search, Filter, LogIn, MapPin, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth, handleFirestoreError } from './contexts/AuthContext';
 import { cn } from './lib/utils';
 import { CATEGORY_OPTIONS, getDisplayCategory } from './lib/categories';
+import { getCurrentCoordinates } from './lib/location';
 
 const LOCATION_OPTIONS = [
   { name: 'Selangor', latitude: 3.0738, longitude: 101.5183 },
@@ -172,6 +174,18 @@ export default function App() {
   };
 
   useEffect(() => {
+    const handlePushChatOpen = (event: Event) => {
+      const chatId = (event as CustomEvent<{ chatId?: string }>).detail?.chatId;
+      if (chatId) {
+        openChat(chatId);
+      }
+    };
+
+    window.addEventListener('charitylink:open-chat', handlePushChatOpen);
+    return () => window.removeEventListener('charitylink:open-chat', handlePushChatOpen);
+  }, []);
+
+  useEffect(() => {
     if (!user) return;
     
     // Fetch all available posts to show same location first, then others
@@ -249,41 +263,35 @@ export default function App() {
   }, [profile?.state, hasPickedLocation]);
 
   useEffect(() => {
-    if (hasPickedLocation || !('geolocation' in navigator)) return;
+    if (!user || hasPickedLocation) return;
 
     let isCancelled = false;
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        if (isCancelled || hasPickedLocationRef.current) return;
+    const detectLocation = async () => {
+      const coordinates = await getCurrentCoordinates();
+      if (isCancelled || hasPickedLocationRef.current) return;
 
-        const detectedLocation = getNearestSupportedLocation(
-          position.coords.latitude,
-          position.coords.longitude
-        );
-        setUserLocation(detectedLocation);
-      },
-      () => {
-        if (!isCancelled && profile?.state && !hasPickedLocationRef.current) {
-          setUserLocation(profile.state);
-        }
-      },
-      {
-        enableHighAccuracy: false,
-        maximumAge: 10 * 60 * 1000,
-        timeout: 8000,
+      if (coordinates) {
+        setUserLocation(getNearestSupportedLocation(coordinates.latitude, coordinates.longitude));
+        return;
       }
-    );
+
+      if (profile?.state) {
+        setUserLocation(profile.state);
+      }
+    };
+
+    void detectLocation();
 
     return () => {
       isCancelled = true;
     };
-  }, [hasPickedLocation, profile?.state]);
+  }, [user, hasPickedLocation, profile?.state]);
 
   if (loading || isInitial) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-eco-bg text-emerald-600">
-        <Leaf className="w-12 h-12 animate-bounce" />
+      <div className="min-h-screen flex items-center justify-center bg-eco-bg">
+        <BrandLoader />
       </div>
     );
   }
@@ -291,9 +299,7 @@ export default function App() {
   if (!user) {
     return (
       <div className="min-h-screen bg-eco-bg flex flex-col items-center justify-center p-8 text-center space-y-8">
-        <div className="w-24 h-24 bg-emerald-600 rounded-[2rem] flex items-center justify-center shadow-xl shadow-emerald-200">
-          <Leaf className="w-12 h-12 text-white" />
-        </div>
+        <BrandLogo className="h-28 w-28" />
         <div className="space-y-2">
           <h1 className="text-4xl font-black text-gray-900 leading-tight">CharityLink</h1>
           <p className="text-gray-500 font-medium max-w-[240px] mx-auto">Connecting donors with local charities for a greener world.</p>
@@ -482,16 +488,14 @@ export default function App() {
               {/* Xiaohongshu Masonry Grid */}
               <div className="columns-2 gap-3 pb-24">
                 {isPostsLoading ? (
-                  <div className="col-span-2 py-20 flex justify-center w-full break-inside-avoid">
-                    <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-                  </div>
+                  <BrandLoader className="[column-span:all] py-20 w-full break-inside-avoid" label="Loading donations" />
                 ) : displayedPosts.length > 0 ? (
                   displayedPosts.map((post) => (
                     <PostCard key={post.id} post={post} onClick={() => setSelectedPost(post)} />
                   ))
                 ) : (
-                  <div className="col-span-2 py-20 text-center space-y-4 w-full break-inside-avoid">
-                    <div className="text-4xl">🍃</div>
+                  <div className="[column-span:all] min-h-[360px] pb-24 flex flex-col items-center justify-center text-center space-y-4 w-full break-inside-avoid">
+                    <BrandLogo className="h-16 w-16" />
                     <p className="text-gray-500 font-medium">No results found.</p>
                     {(searchQuery || activeCategory || activeLocation) && (
                       <button 
@@ -529,9 +533,7 @@ export default function App() {
             
             <div className="space-y-4">
               {isNeedsLoading ? (
-                <div className="py-20 flex justify-center w-full">
-                  <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-                </div>
+                <BrandLoader className="py-20 w-full" label="Loading needs" />
               ) : filteredNeeds.length > 0 ? (
                 filteredNeeds.map((need) => (
                   <div key={need.id} className="bg-white p-5 rounded-3xl border border-emerald-50 shadow-sm space-y-3">
@@ -580,7 +582,8 @@ export default function App() {
                   </div>
                 ))
               ) : (
-                <div className="py-20 text-center space-y-4 w-full">
+                <div className="py-20 text-center space-y-4 w-full flex flex-col items-center">
+                  <BrandLogo className="h-16 w-16" />
                   <p className="text-gray-500 font-medium">
                     No needs found{activeNeedLocation ? ` in ${activeNeedLocation}` : ''}.
                   </p>
@@ -625,9 +628,7 @@ export default function App() {
       default:
         return (
           <div className="flex flex-col items-center justify-center h-[50vh] text-center px-8">
-            <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-4">
-              <span className="text-3xl">🌱</span>
-            </div>
+            <BrandLogo className="mb-4 h-20 w-20" />
             <h3 className="text-xl font-bold text-gray-900">Feature Coming Soon</h3>
             <p className="text-gray-500 mt-2">Our team is hard at work building this part of the CharityLink experience.</p>
           </div>

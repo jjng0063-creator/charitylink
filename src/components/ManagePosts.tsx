@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Clock, Eye, EyeOff, ImagePlus, Loader2, MapPin, MessageSquare, Pencil, Save, Trash2, User, X } from 'lucide-react';
+import { ArrowLeft, Clock, Eye, EyeOff, ImagePlus, MapPin, MessageSquare, Pencil, Save, Trash2, User, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ChatRoom, DonationPost } from '../types';
 import { useAuth, handleFirestoreError } from '../contexts/AuthContext';
@@ -7,6 +7,7 @@ import { db, storage } from '../lib/firebase';
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { CATEGORY_OPTIONS, getDisplayCategory, isCategoryOption } from '../lib/categories';
+import { BrandLoader, BrandLogo } from './BrandLogo';
 
 interface ManagePostsProps {
   onBack: () => void;
@@ -702,9 +703,7 @@ export function ManagePosts({ onBack }: ManagePostsProps) {
           </div>
 
           {isAnalysisLoading ? (
-            <div className="py-10 flex justify-center">
-              <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-            </div>
+            <BrandLoader className="py-10" label="Checking requests" />
           ) : requestInsights.length > 0 ? (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -771,11 +770,10 @@ export function ManagePosts({ onBack }: ManagePostsProps) {
 
       <div className="space-y-3">
         {isLoading ? (
-          <div className="py-16 flex justify-center">
-            <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-          </div>
+          <BrandLoader className="py-16" label="Loading your posts" />
         ) : myDonations.length === 0 ? (
-          <div className="bg-white p-6 rounded-2xl border border-emerald-50 text-center text-gray-500 font-medium shadow-sm">
+          <div className="bg-white p-6 rounded-2xl border border-emerald-50 text-center text-gray-500 font-medium shadow-sm flex flex-col items-center gap-3">
+            <BrandLogo className="h-14 w-14" />
             You have no posts yet.
           </div>
         ) : (
