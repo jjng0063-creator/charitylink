@@ -2,7 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Bell, BellOff, Loader2, MapPin, Save, UserRound } from 'lucide-react';
 import { useAuth, handleFirestoreError } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
-import { enablePushNotifications, getPushNotificationStatus, NotificationPermissionState } from '../lib/pushNotifications';
+import {
+  disablePushNotifications,
+  enablePushNotifications,
+  getPushNotificationStatus,
+  NotificationPermissionState
+} from '../lib/pushNotifications';
 
 interface AccountSettingsProps {
   onBack: () => void;
@@ -42,15 +47,21 @@ export function AccountSettings({ onBack }: AccountSettingsProps) {
     };
   }, []);
 
-  const enableNotifications = async () => {
+  const toggleNotifications = async () => {
     setIsNotificationSaving(true);
     setStatusMessage(null);
 
     try {
-      const nextStatus = await enablePushNotifications(user.uid);
+      const nextStatus = notificationStatus === 'enabled'
+        ? await disablePushNotifications(user.uid)
+        : await enablePushNotifications(user.uid);
+
       setNotificationStatus(nextStatus);
 
-      if (nextStatus === 'enabled') {
+      if (notificationStatus === 'enabled') {
+        setStatusType('success');
+        setStatusMessage('Notifications disabled successfully.');
+      } else if (nextStatus === 'enabled') {
         setStatusType('success');
         setStatusMessage('Notifications enabled successfully.');
       } else {
@@ -191,7 +202,7 @@ export function AccountSettings({ onBack }: AccountSettingsProps) {
                   ? 'Enabled for chat and request alerts.'
                   : notificationStatus === 'unsupported'
                     ? 'Only available in the installed mobile app.'
-                    : 'Enable alerts so new chat messages can appear on your phone.'}
+                    : 'Notifications are off. Enable alerts so new chat messages can appear on your phone.'}
               </p>
             </div>
           </div>
@@ -199,17 +210,23 @@ export function AccountSettings({ onBack }: AccountSettingsProps) {
           {notificationStatus !== 'unsupported' && (
             <button
               type="button"
-              onClick={enableNotifications}
+              onClick={toggleNotifications}
               disabled={isNotificationSaving}
               className={cn(
                 'w-full py-3 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-60',
                 notificationStatus === 'enabled'
-                  ? 'bg-white text-emerald-700 border border-emerald-100'
+                  ? 'bg-white text-red-600 border border-red-100'
                   : 'bg-emerald-600 text-white shadow-lg shadow-emerald-200/50'
               )}
             >
-              {isNotificationSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
-              {notificationStatus === 'enabled' ? 'Refresh Notification Token' : 'Enable Notifications'}
+              {isNotificationSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : notificationStatus === 'enabled' ? (
+                <BellOff className="w-4 h-4" />
+              ) : (
+                <Bell className="w-4 h-4" />
+              )}
+              {notificationStatus === 'enabled' ? 'Disable Notifications' : 'Enable Notifications'}
             </button>
           )}
         </div>

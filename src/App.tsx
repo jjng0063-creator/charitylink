@@ -82,6 +82,8 @@ export default function App() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isViewingAll, setIsViewingAll] = useState(false);
   const hasPickedLocationRef = useRef(false);
+  const hasDetectedLocationRef = useRef(false);
+  const locationRefreshIdRef = useRef(0);
   
   const LOCATIONS = LOCATION_OPTIONS.map((location) => location.name);
 
@@ -89,6 +91,32 @@ export default function App() {
     setHasPickedLocation(true);
     hasPickedLocationRef.current = true;
     setUserLocation(location);
+  };
+
+  const refreshCurrentLocation = async (options: { force?: boolean; fallbackLocation?: string } = {}) => {
+    if (!user) return;
+
+    const refreshId = locationRefreshIdRef.current + 1;
+    locationRefreshIdRef.current = refreshId;
+
+    const coordinates = await getCurrentCoordinates();
+    const isLatestRefresh = locationRefreshIdRef.current === refreshId;
+
+    if (!isLatestRefresh) return;
+    if (!options.force && hasPickedLocationRef.current) return;
+
+    if (coordinates) {
+      setUserLocation(getNearestSupportedLocation(coordinates.latitude, coordinates.longitude));
+      setHasPickedLocation(false);
+      hasPickedLocationRef.current = false;
+      hasDetectedLocationRef.current = true;
+      return;
+    }
+
+    if (options.fallbackLocation) {
+      hasDetectedLocationRef.current = false;
+      setUserLocation(options.fallbackLocation);
+    }
   };
 
   const openPostFilterDrawer = () => {
@@ -257,36 +285,34 @@ export default function App() {
   }, [user, userLocation]);
 
   useEffect(() => {
-    if (profile?.state && !hasPickedLocation) {
+    if (profile?.state && !hasPickedLocation && !hasDetectedLocationRef.current) {
       setUserLocation(profile.state);
     }
   }, [profile?.state, hasPickedLocation]);
 
   useEffect(() => {
-    if (!user || hasPickedLocation) return;
+    if (!user) return;
 
-    let isCancelled = false;
+    void refreshCurrentLocation({ fallbackLocation: profile?.state });
+  }, [user, profile?.state]);
 
-    const detectLocation = async () => {
-      const coordinates = await getCurrentCoordinates();
-      if (isCancelled || hasPickedLocationRef.current) return;
+  useEffect(() => {
+    if (!user) return;
 
-      if (coordinates) {
-        setUserLocation(getNearestSupportedLocation(coordinates.latitude, coordinates.longitude));
-        return;
-      }
-
-      if (profile?.state) {
-        setUserLocation(profile.state);
+    const refreshOnAppOpen = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshCurrentLocation({ fallbackLocation: profile?.state });
       }
     };
 
-    void detectLocation();
+    document.addEventListener('visibilitychange', refreshOnAppOpen);
+    window.addEventListener('focus', refreshOnAppOpen);
 
     return () => {
-      isCancelled = true;
+      document.removeEventListener('visibilitychange', refreshOnAppOpen);
+      window.removeEventListener('focus', refreshOnAppOpen);
     };
-  }, [user, hasPickedLocation, profile?.state]);
+  }, [user, profile?.state]);
 
   if (loading || isInitial) {
     return (
