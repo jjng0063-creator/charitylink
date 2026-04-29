@@ -20,6 +20,7 @@ type RequestInsight = {
 };
 
 const getPostImages = (post: DonationPost) => post.imageUrls?.length ? post.imageUrls : [post.imageUrl];
+const LOCATION_OPTIONS = ['Selangor', 'Kuala Lumpur', 'Pulau Pinang', 'Johor', 'Perak'];
 
 export function ManagePosts({ onBack }: ManagePostsProps) {
   const { user } = useAuth();
@@ -30,6 +31,7 @@ export function ManagePosts({ onBack }: ManagePostsProps) {
   const [editCategory, setEditCategory] = useState('');
   const [editCustomCategory, setEditCustomCategory] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [editLocation, setEditLocation] = useState('Selangor');
   const [editImage, setEditImage] = useState<string | null>(null);
   const [editSelectedFile, setEditSelectedFile] = useState<File | null>(null);
   const [requestInsights, setRequestInsights] = useState<RequestInsight[]>([]);
@@ -150,6 +152,7 @@ export function ManagePosts({ onBack }: ManagePostsProps) {
     setEditCategory(isCategoryOption(post.category) ? post.category : 'Other');
     setEditCustomCategory(post.customCategory || (isCategoryOption(post.category) ? '' : post.category || ''));
     setEditDescription(post.description || '');
+    setEditLocation(post.state || 'Selangor');
     setEditImage(getPostImages(post)[0] || null);
     setEditSelectedFile(null);
     setStatusMessage(null);
@@ -166,6 +169,7 @@ export function ManagePosts({ onBack }: ManagePostsProps) {
     setEditCategory('');
     setEditCustomCategory('');
     setEditDescription('');
+    setEditLocation('Selangor');
     setEditImage(null);
     setEditSelectedFile(null);
     setSelectedImageIndex(0);
@@ -275,6 +279,7 @@ export function ManagePosts({ onBack }: ManagePostsProps) {
     const category = editCategory.trim();
     const customCategory = category === 'Other' ? editCustomCategory.trim() : '';
     const description = editDescription.trim();
+    const location = editLocation.trim();
 
     if (!title || title.length > 200) {
       setStatusType('error');
@@ -306,6 +311,12 @@ export function ManagePosts({ onBack }: ManagePostsProps) {
       return;
     }
 
+    if (!LOCATION_OPTIONS.includes(location)) {
+      setStatusType('error');
+      setStatusMessage('Please select a valid location.');
+      return;
+    }
+
     try {
       const nextImageUrl = editSelectedFile ? await uploadEditImageAndGetUrl(postId) : null;
       const nextImageUrls = [...editGallery];
@@ -322,6 +333,7 @@ export function ManagePosts({ onBack }: ManagePostsProps) {
         category,
         customCategory: customCategory || null,
         description,
+        state: location,
         imageUrl: primaryImageUrl,
         imageUrls: nextImageUrls,
         updatedAt: serverTimestamp(),
@@ -336,6 +348,7 @@ export function ManagePosts({ onBack }: ManagePostsProps) {
                 category,
                 customCategory: customCategory || null,
                 description,
+                state: location,
                 imageUrl: primaryImageUrl,
                 imageUrls: nextImageUrls,
                 updatedAt: Date.now(),
@@ -353,6 +366,7 @@ export function ManagePosts({ onBack }: ManagePostsProps) {
                 category,
                 customCategory: customCategory || null,
                 description,
+                state: location,
                 imageUrl: primaryImageUrl,
                 imageUrls: nextImageUrls,
                 updatedAt: Date.now(),
@@ -664,6 +678,15 @@ export function ManagePosts({ onBack }: ManagePostsProps) {
                     placeholder="Specify category"
                   />
                 )}
+                <select
+                  value={editLocation}
+                  onChange={(e) => setEditLocation(e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-emerald-50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-sm"
+                >
+                  {LOCATION_OPTIONS.map((location) => (
+                    <option key={location} value={location}>{location}</option>
+                  ))}
+                </select>
                 <textarea
                   rows={4}
                   value={editDescription}

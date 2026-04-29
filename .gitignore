@@ -11,3 +11,5 @@ android/app/google-services.json
 google-services.json
 *.apk
 *.aab
+_report_extract.txt
+_new_report_extract.txt

@@ -196,7 +196,7 @@ service cloud.firestore {
         && incoming().updatedAt == request.time
         && (
           // Action: Edit content
-          (isOwner(existing().donorId) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'category', 'customCategory', 'visibility', 'imageUrl', 'imageUrls', 'updatedAt'])) ||
+          (isOwner(existing().donorId) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'category', 'customCategory', 'state', 'visibility', 'imageUrl', 'imageUrls', 'updatedAt'])) ||
           // Action: Hide/show public visibility
           (isOwner(existing().donorId) && incoming().diff(existing()).affectedKeys().hasOnly(['visibility', 'updatedAt'])) ||
           // Action: Claim/Status update
